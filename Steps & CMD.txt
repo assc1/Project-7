@@ -1,0 +1,123 @@
+Slung 4 ec2 rhel instances and name them NFS,websever1,webserver2,websever3 respectively.
+splung another ec2-instance but this time it should be ubuntu.
+Create 3 volumes and attach to the NFS server.
+ssh into the NFS server.
+list the volumes-lsblk.
+Create 3 partitions for xvdf,xvdg,xvdh with gdisk.
+sudo gdisk /dev/xvdf(n=enter=enter=8300=w=yes)
+sudo gdisk /dev/xvdg(n=enter=enter=8300=w=yes)
+sudo gdisk /dev/xvdh(n=enter=enter=8300=w=yes)
+install lvm package(sudo yum install lvm2 -y)
+create physical volumes(sudo pvcreate /dev/xvdf1)
+create physical volumes(sudo pvcreate /dev/xvdg1)
+create physical volumes(sudo pvcreate /dev/xvdh1)
+create volume group.(sudo vgcreate webdata-vg /dev/xvdf1 /dev/xvdg1 /dev/xvdh1)
+create logical volumes(sudo lvcreate -n lv-apps -L 9G webdata-vg)
+sudo lvcreate -n lv-logss -L 9G webdata-vg
+sudo lvcreate -n lv-opt -L 9G webdata-vg
+fomate the disc as xfs:
+sudo mkfs -t xfs /dev/webdata-vg/lv-apps
+sudo mkfs -t xfs /dev/webdata-vg/lv-logss
+sudo mkfs -t xfs /dev/webdata-vg/lv-opt
+create mount points
+sudo mkdir /mnt/apps
+sudo mkdir /mnt/logss
+sudo mkdir /mnt/opt
+mount
+sudo mount /dev/webdata-vg/lv-apps /mnt/apps
+sudo mount /dev/webdata-vg/lv-logss /mnt/logss
+sudo mount /dev/webdata-vg/lv-opt /mnt/opt
+sudo yum -y update
+Prepare the db server
+sudo apt update & upgrade
+sudo apt install mysql-server -y
+create user 'webacess'@'172.31.0.0/16' identified by 'password';
+give acess to the user and privileges
+grant all privileges on tooling.* to 'webacess'@'172.31.0.0/16';
+flush privileges;
+show databases;
+continue preparing NFS server:
+sudo yum -y update
+sudo yum install nfs-utils -y
+sudo systemctl start nfs-server.service
+sudo systemctl enable nfs-server.service
+sudo systemctl status nfs-server.service
+set up permission that will allow our Web servers to read, write and execute files on NFS
+sudo chown -R nobody: /mnt/apps
+sudo chown -R nobody: /mnt/logs
+sudo chown -R nobody: /mnt/opt
+
+sudo chmod -R 777 /mnt/apps
+sudo chmod -R 777 /mnt/logs
+sudo chmod -R 777 /mnt/opt
+
+sudo systemctl restart nfs-server.service
+sudo vi /etc/exports
+insert contents, exit and save
+export contents(sudo exportfs -arv)
+rpcinfo -p | grep nfs
+open port TCP 111, UDP 111, UDP 2049 to make it acessable
+connect to websever1
+sudo yum install nfs-utils nfs4-acl-tools -y
+sudo mkdir /var/www
+sudo mount -t nfs -o rw,nosuid <NFS-Server-Private-IP-Address>:/mnt/apps /var/www
+sudo vi /etc/fstab
+paste content and replace NFS private ip, save and exit 
+172.31.11.180:/mnt/apps /var/www nfs defaults 0 0
+sudo yum install httpd -y
+
+sudo dnf install https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm
+
+sudo dnf install dnf-utils http://rpms.remirepo.net/enterprise/remi-release-8.rpm
+
+sudo dnf module reset php
+
+sudo dnf module enable php:remi-7.4
+
+sudo dnf install php php-opcache php-gd php-curl php-mysqlnd
+
+sudo systemctl start php-fpm
+
+sudo systemctl enable php-fpm
+
+setsebool -P httpd_execmem 1
+install apache on webserver2 and websever3
+Verify that Apache files and directories are available on the Web Server in /var/www and also on the NFS server in /mnt/apps
+ls /var/www
+ls /mnt/apps
+Locate the log folder for Apache on the Web Server and mount it to NFS server’s export for logs
+sudo mount -t nfs -o rw,nosuid <NFS-Server-Private-IP-Address>:/mnt/logss /var/logss/httpd
+tooling]$ sudo mount -t nfs -o rw,nosuid 172.31.11.180:/mnt/logss /var/log/httpd
+Fork the tooling source code from Darey.io Github Account to your Github account.
+git clone https://github.com/darey-io/tooling.git
+Deploy the tooling website’s code to the Webserver.
+sudo cp -R html/. /var/www/html
+ open TCP port 80 on the Web Server
+ sudo setenforce 0
+ make this change permanent by opening the /etc/sysconfig/selinux file and change selinux to disabled.
+save and exit.
+Update the website’s configuration to connect to the database
+mysql -h 172.31.4.166 -u webaccess -p tooling < tooling-db.sql
+recieving errors, not able to reach mysql
+sudo yum install mysql
+still unable to install mysql with error message :RPM: error: Plugin selinux: hook tsm_pre failed
+place error on google and people advising to go back and change selenum back to targeted.
+change and saved.
+mysql now installed.
+Installed:
+  mariadb-connector-c-config-3.2.6-1.el9_0.noarch   mysql-8.0.30-3.el9_0.x86_64  
+  mysql-common-8.0.30-3.el9_0.x86_64
+  cd tooling
+  mysql -h 172.31.4.166 -u webaccess -p tooling < tooling-db.sql
+  enter password as password.
+  screenshot saved and uploaded.
+  Can't connect to MySQL server on '172.31.4.166:3306
+  sudo vi /etc/mysql/mysql.conf.d/mysqld.cnf
+  change binding address and mysql bind address to 0.0.0.0
+  save and exit
+  rerun cmd  mysql -h 172.31.4.166 -u webaccess -p tooling < tooling-db.sql
+  enter password
+  access webpage
+  http://18.224.44.103/login.php
+  screenshot and save
+
